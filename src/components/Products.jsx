@@ -10,26 +10,38 @@ const Products = () => {
   const [data, setData] = useState([]);
   const [filter, setFilter] = useState([]);
   const [loading, setLoading] = useState(false);
-  let componentMounted = true;
 
   const dispatch = useDispatch();
   const addProduct = (product) => dispatch(addCart(product));
 
   useEffect(() => {
-    const getProducts = async () => {
-      setLoading(true);
-      const response = await fetch("https://fakestoreapi.com/products/");
-      if (componentMounted) {
-        const cloned = await response.clone().json();
-        setData(cloned);
-        setFilter(cloned);
-        setLoading(false);
+    let isMounted = true;                   // track mount state
+    const controller = new AbortController(); // cancel fetch on unmount
+
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await fetch("https://fakestoreapi.com/products/", {
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (isMounted) {
+          setData(data);
+          setFilter(data);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          console.error(err);
+        }
+        if (isMounted) setLoading(false);
       }
-      return () => {
-        componentMounted = false;
-      };
+    })();
+
+    return () => {
+      isMounted = false;     // prevents state updates after unmount
+      controller.abort();    // cancels in-flight request
     };
-    getProducts();
   }, []);
 
   const filterProduct = (cat) => {
